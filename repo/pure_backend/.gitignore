@@ -1,0 +1,12 @@
+target/
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+
+# local runtime files (mounted volume in docker)
+storage/
+
+# logs
+*.log

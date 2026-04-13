@@ -1,0 +1,78 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: anju-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: anju_ops
+      MYSQL_USER: anju
+      MYSQL_PASSWORD: anju123
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - anju_net
+
+  nacos:
+    image: nacos/nacos-server:v2.3.2
+    container_name: anju-nacos
+    restart: unless-stopped
+    environment:
+      MODE: standalone
+      PREFER_HOST_MODE: hostname
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8848/nacos/actuator/health | grep -q UP || exit 1"]
+      interval: 15s
+      timeout: 8s
+      retries: 10
+    networks:
+      - anju_net
+
+  app:
+    build:
+      context: ./pure_backend
+      dockerfile: Dockerfile
+    container_name: anju-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/anju_ops?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+      NACOS_ADDR: nacos:8848
+      # AES key for sensitive-field encryption; override in real deployments.
+      # Example is 32 bytes base64; replace with your own secret before production use.
+      APP_AES_KEY_BASE64: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+    ports:
+      - "8080:8080"
+    volumes:
+      - app_storage:/app/storage
+    networks:
+      - anju_net
+
+volumes:
+  mysql_data:
+  app_storage:
+
+networks:
+  anju_net:
+    driver: bridge
